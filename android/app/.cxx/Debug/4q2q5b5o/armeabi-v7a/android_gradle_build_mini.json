@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "/Users/jatinkumar/Documents/sdk/flutter/packages/flutter_tools/gradle/src/main/groovy/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/jatinkumar/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/jatinkumar/Documents/work projects/agora_video_call_demo/android/app/.cxx/Debug/4q2q5b5o/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/jatinkumar/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/jatinkumar/Documents/work projects/agora_video_call_demo/android/app/.cxx/Debug/4q2q5b5o/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}

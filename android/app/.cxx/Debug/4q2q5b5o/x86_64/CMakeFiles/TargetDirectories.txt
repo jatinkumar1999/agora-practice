@@ -1,0 +1,2 @@
+/Users/jatinkumar/Documents/work projects/agora_video_call_demo/android/app/.cxx/Debug/4q2q5b5o/x86_64/CMakeFiles/edit_cache.dir
+/Users/jatinkumar/Documents/work projects/agora_video_call_demo/android/app/.cxx/Debug/4q2q5b5o/x86_64/CMakeFiles/rebuild_cache.dir
