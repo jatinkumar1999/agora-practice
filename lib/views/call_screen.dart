@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
-
-import 'package:agora_video_call_demo/home/notification_functions.dart';
-import 'package:agora_video_call_demo/user_list_screen/users_list_screen.dart';
+import 'package:floating/floating.dart';
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/services.dart';
@@ -10,13 +8,13 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:vibration/vibration.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-
 import '../home/home_screen.dart';
+import 'dart:math' as math;
 
 const String appId = '88ebabb4bf1e4be184fa4dcd57e7a972';
 
 String token =
-    '007eJxTYIiJOi54tOxZYKzKv0/HJxz9eO1ksdHWjA0Wu3xXlk3ap8+jwGBhkZqUmJRkkpRmmGqSlGpoYZKWaJKSnGJqnmqeaGlu9OFPX0ZDICPDvHVvmBgZIBDE52Moy0xJzY9PzkgsiTc0MmZgAADTxydN';
+    '007eJxTYMj55icpqnM0Q6tUhKfa59Y5xnmlR68nR6d9+iSolCxa+EeBwcIiNSkxKckkKc0w1SQp1dDCJC3RJCU5xdQ81TzR0txoAv/0jIZARobjrXLMjAwQCOLzMZRlpqTmxydnJJbEGxoZMzAAAEBrIfk=';
 
 class AgoraCallScreen extends StatefulWidget {
   final String callId;
@@ -47,6 +45,9 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
   int playbackVolume = 100;
   late final StreamSubscription _subscription;
   Timer? _vibrationTimer;
+  final floating = Floating();
+
+  bool isPipEnabled = false;
 
   @override
   void initState() {
@@ -59,6 +60,8 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
     WidgetsBinding.instance.addObserver(this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      isPipEnabled = await floating.isPipAvailable;
+
       await WakelockPlus.enable();
 
       await _startVideoCalling();
@@ -88,8 +91,12 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
           } else if (status == 'cancelled') {
             stopVibrating();
           } else if (status == 'ended') {
+            floating.cancelOnLeavePiP();
+
             Navigator.pop(context);
           } else if (status == 'call-timeout') {
+            floating.cancelOnLeavePiP();
+
             Navigator.pop(context);
           }
         });
@@ -137,6 +144,7 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
     WidgetsBinding.instance.removeObserver(this);
 
     _cleanupAgoraEngine();
+    stopVibrating();
 
     _subscription.cancel();
 
@@ -156,7 +164,6 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
         .eq('id', widget.callId)
         .select()
         .single();
-        
   }
 
   // Initializes Agora SDK
@@ -394,100 +401,144 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
     );
   }
 
+  Future<void> enablePip(
+    BuildContext context, {
+    bool autoEnable = false,
+  }) async {
+    const rational = Rational.landscape();
+    final screenSize =
+        MediaQuery.of(context).size * MediaQuery.of(context).devicePixelRatio;
+    final height = screenSize.width ~/ rational.aspectRatio;
+
+    final arguments = autoEnable
+        ? OnLeavePiP(
+            aspectRatio: rational,
+            sourceRectHint: math.Rectangle<int>(
+              0,
+              (screenSize.height ~/ 2) - (height ~/ 2),
+              screenSize.width.toInt(),
+              height,
+            ),
+          )
+        : ImmediatePiP(
+            aspectRatio: rational,
+            sourceRectHint: math.Rectangle<int>(
+              0,
+              (screenSize.height ~/ 2) - (height ~/ 2),
+              screenSize.width.toInt(),
+              height,
+            ),
+          );
+
+    final status = await floating.enable(arguments);
+    debugPrint('PiP enabled? $status');
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     return isLoadAgora
         ? const Scaffold(backgroundColor: Colors.white)
-        : PopScope(
-            canPop: false,
-            onPopInvokedWithResult: (didPop, result) {
-              if (didPop) return;
-            },
-            child: Scaffold(
-              appBar: AppBar(
-                automaticallyImplyLeading: false,
-                title: Text(currentUser.toLowerCase() ==
-                        widget.callerId.toLowerCase().trim()
-                    ? widget.receiverId
-                    : widget.callerId),
-              ),
-              body: isLoadAgora
-                  ? const SizedBox()
-                  : SizedBox(
-                      width: size.width,
-                      child: _remoteUid == null
-                          ? Stack(
-                              children: [
-                                _localVideo(),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Container(
-                                      width: size.width,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          GestureDetector(
-                                            onTap: () async {
-                                              log('kill kill kill kill kill');
+        : isLoadAgora
+                ? const SizedBox()
+                : SizedBox(
+                    width: size.width,
+                    child: _remoteUid == null
+                        ? Stack(
+                            children: [
+                              _localVideo(),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Container(
+                                    width: size.width,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () async {
+                                            log('kill kill kill kill kill');
 
-                                              await _cleanupAgoraEngine();
-                                              await Supabase.instance.client
-                                                  .from('calls')
-                                                  .update({
-                                                'status': 'cancelled'
-                                              }).eq('id', widget.callId);
-                                            },
-                                            child: Container(
-                                              width: 50,
-                                              height: 50,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.red,
-                                                shape: BoxShape.circle,
-                                              ),
-                                              alignment: Alignment.center,
-                                              child: const Icon(
-                                                Icons.call_end,
-                                                color: Colors.white,
-                                              ),
+                                            await _cleanupAgoraEngine();
+                                            await Supabase.instance.client
+                                                .from('calls')
+                                                .update({
+                                              'status': 'cancelled'
+                                            }).eq('id', widget.callId);
+                                          },
+                                          child: Container(
+                                            width: 50,
+                                            height: 50,
+                                            decoration: const BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: const Icon(
+                                              Icons.call_end,
+                                              color: Colors.white,
                                             ),
                                           ),
-                                          const SizedBox(width: 10),
-                                        ],
-                                      ),
-                                    )
-                                  ],
+                                        ),
+                                        const SizedBox(width: 10),
+                                      ],
+                                    ),
+                                  )
+                                ],
+                              ),
+                            ],
+                          )
+                        : PiPSwitcher(
+                            childWhenDisabled: PopScope(
+                              canPop: false,
+                              onPopInvokedWithResult: (didPop, result) {
+                                if (didPop) {
+                                  return;
+                                }
+                                enablePip(context);
+                              },
+                              child: Scaffold(
+                                appBar: AppBar(
+                                  automaticallyImplyLeading: false,
+                                  title: Text(currentUser.toLowerCase() ==
+                                          widget.callerId.toLowerCase().trim()
+                                      ? widget.receiverId
+                                      : widget.callerId),
                                 ),
-                              ],
-                            )
-                          : Stack(
-                              children: [
-                                Center(
-                                    child: _remoteVideoMuted
-                                        ? VideoMuteRemoteUserView(
-                                            remoteUser:
-                                                currentUser.toLowerCase() ==
-                                                        widget.callerId
-                                                            .toLowerCase()
-                                                            .trim()
-                                                    ? widget.receiverId
-                                                    : widget.callerId,
-                                            isVideoEnabled: _remoteVideoMuted,
-                                            onTap: () async =>
-                                                await _setShowFace(),
-                                          )
-                                        : _remoteVideo()),
+                                body: Stack(
+                                  children: [
+                                    Center(
+                                        child: _remoteVideoMuted
+                                            ? VideoMuteRemoteUserView(
+                                                remoteUser:
+                                                    currentUser.toLowerCase() ==
+                                                            widget.callerId
+                                                                .toLowerCase()
+                                                                .trim()
+                                                        ? widget.receiverId
+                                                        : widget.callerId,
+                                                isVideoEnabled:
+                                                    _remoteVideoMuted,
+                                                onTap:
+                                                    currentUser.toLowerCase() ==
+                                                            widget.callerId
+                                                                .toLowerCase()
+                                                                .trim()
+                                                        ? () async =>
+                                                            await _setShowFace()
+                                                        : () {},
+                                              )
+                                            : _remoteVideo()),
 
-                                // Drag targets
-                                _buildCornerTarget(Alignment.topLeft),
-                                _buildCornerTarget(Alignment.topRight),
-                                _buildCornerTarget(Alignment.bottomLeft),
-                                _buildCornerTarget(Alignment.bottomRight),
-                                /*  Align(
+                                    // Drag targets
+                                    _buildCornerTarget(Alignment.topLeft),
+                                    _buildCornerTarget(Alignment.topRight),
+                                    _buildCornerTarget(Alignment.bottomLeft),
+                                    _buildCornerTarget(Alignment.bottomRight),
+                                    /*  Align(
                                   alignment: Alignment.topLeft,
                                   child: Padding(
                                     padding: const EdgeInsets.only(
@@ -522,7 +573,7 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
                                   ),
                                 ), */
 
-                                /*  // Draggable local view
+                                    /*  // Draggable local view
                                 Align(
                                   alignment: Alignment.topLeft,
                                   child: ClipRRect(
@@ -537,152 +588,454 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
                                   ),
                                 ), */
 
-                                Align(
-                                  alignment: _localViewAlignment,
-                                  child: Draggable<String>(
-                                    data: 'local_view',
-                                    feedback: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 10,
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: SizedBox(
-                                          width: 100,
-                                          height: 150,
-                                          child: Center(
-                                            child: _localVideo(),
+                                    Align(
+                                      alignment: _localViewAlignment,
+                                      child: Draggable<String>(
+                                        data: 'local_view',
+                                        feedback: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 10,
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            child: SizedBox(
+                                              width: 100,
+                                              height: 150,
+                                              child: Center(
+                                                child: _localVideo(),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        childWhenDragging:
+                                            const SizedBox.shrink(),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 10,
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            child: SizedBox(
+                                              width: 100,
+                                              height: 150,
+                                              child: Center(
+                                                child: _localVideo(),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                    childWhenDragging: const SizedBox.shrink(),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 10,
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: SizedBox(
-                                          width: 100,
-                                          height: 150,
-                                          child: Center(
-                                            child: _localVideo(),
+
+                                    Column(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        Container(
+                                          width: size.width,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 10),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(20),
+                                              topRight: Radius.circular(20),
+                                            ),
+                                            // boxShadow: [
+                                            //   BoxShadow(
+                                            //     color: Colors.black,
+                                            //     spreadRadius: 2,
+                                            //     blurRadius: 5,
+                                            //     offset: Offset(-1, -1),
+                                            //   )
+                                            // ],
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              const SizedBox(width: 10),
+                                              GestureDetector(
+                                                onTap: () async =>
+                                                    await _muteRemoteUser(
+                                                        shouldMute: true),
+                                                child: Container(
+                                                  width: 50,
+                                                  height: 50,
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        isRemoteUserVideoEnable
+                                                            ? Colors.blue
+                                                            : Colors.grey
+                                                                .withValues(
+                                                                    alpha:
+                                                                        0.35),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  alignment: Alignment.center,
+                                                  child: Icon(
+                                                    isMuted
+                                                        ? Icons.mic_off
+                                                        : Icons.mic,
+                                                    color: !isMuted
+                                                        ? Colors.white
+                                                        : Colors.black,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              GestureDetector(
+                                                onTap: () async =>
+                                                    await _setShowFace(),
+                                                child: Container(
+                                                  width: 50,
+                                                  height: 50,
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        isRemoteUserVideoEnable
+                                                            ? Colors.blue
+                                                            : Colors.grey
+                                                                .withValues(
+                                                                    alpha:
+                                                                        0.35),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  alignment: Alignment.center,
+                                                  child: Icon(
+                                                    isRemoteUserVideoEnable
+                                                        ? Icons.videocam
+                                                        : Icons.videocam_off,
+                                                    color:
+                                                        isRemoteUserVideoEnable
+                                                            ? Colors.white
+                                                            : Colors.black,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              GestureDetector(
+                                                onTap: () async {
+                                                  await cancelCallBeforeKill();
+                                                },
+                                                child: Container(
+                                                  width: 50,
+                                                  height: 50,
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                    color: Colors.red,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  alignment: Alignment.center,
+                                                  child: const Icon(
+                                                    Icons.call_end,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                            ],
+                                          ),
+                                        )
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                floatingActionButtonLocation:
+                                    FloatingActionButtonLocation.centerFloat,
+                                floatingActionButton: FutureBuilder<bool>(
+                                  future: floating.isPipAvailable,
+                                  initialData: false,
+                                  builder: (context, snapshot) => snapshot
+                                              .data ??
+                                          false
+                                      ? const SizedBox()    : Stack(
+                                          children: [
+                                            Center(
+                                                child: _remoteVideoMuted
+                                                    ? VideoMuteRemoteUserView(
+                                                        remoteUser: currentUser
+                                                                    .toLowerCase() ==
+                                                                widget.callerId
+                                                                    .toLowerCase()
+                                                                    .trim()
+                                                            ? widget.receiverId
+                                                            : widget.callerId,
+                                                        isVideoEnabled:
+                                                            _remoteVideoMuted,
+                                                        onTap: currentUser
+                                                                    .toLowerCase() ==
+                                                                widget.callerId
+                                                                    .toLowerCase()
+                                                                    .trim()
+                                                            ? () async =>
+                                                                await _setShowFace()
+                                                            : () {},
+                                                      )
+                                                    : _remoteVideo()),
+
+                                            // Drag targets
+                                            _buildCornerTarget(
+                                                Alignment.topLeft),
+                                            _buildCornerTarget(
+                                                Alignment.topRight),
+                                            _buildCornerTarget(
+                                                Alignment.bottomLeft),
+                                            _buildCornerTarget(
+                                                Alignment.bottomRight),
+                                            /*  Align(
+                                  alignment: Alignment.topLeft,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 10,
+                                      left: 10,
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: SizedBox(
+                                            width: 100,
+                                            height: 150,
+                                            child: Center(
+                                              child: _localVideo(),
+                                            ),
                                           ),
                                         ),
+                                        Text(
+                                          currentUser.toLowerCase() ==
+                                                  widget.callerId
+                                                      .toLowerCase()
+                                                      .trim()
+                                              ? widget.callerId
+                                              : widget.receiverId,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ), */
+
+                                            /*  // Draggable local view
+                                Align(
+                                  alignment: Alignment.topLeft,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: SizedBox(
+                                      width: 100,
+                                      height: 150,
+                                      child: Center(
+                                        child: _localVideo(),
                                       ),
                                     ),
                                   ),
-                                ),
+                                ), */
 
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Container(
-                                      width: size.width,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10),
-                                      decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.only(
-                                            topLeft: Radius.circular(20),
-                                            topRight: Radius.circular(20),
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black,
-                                              spreadRadius: 2,
-                                              blurRadius: 5,
-                                              offset: Offset(-1, -1),
-                                            )
-                                          ]),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const SizedBox(width: 10),
-                                          GestureDetector(
-                                            onTap: () async =>
-                                                await _muteRemoteUser(
-                                                    shouldMute: true),
-                                            child: Container(
-                                              width: 50,
-                                              height: 50,
-                                              decoration: BoxDecoration(
-                                                color: isRemoteUserVideoEnable
-                                                    ? Colors.blue
-                                                    : Colors.grey.withValues(
-                                                        alpha: 0.35),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              alignment: Alignment.center,
-                                              child: Icon(
-                                                isMuted
-                                                    ? Icons.mic_off
-                                                    : Icons.mic,
-                                                color: !isMuted
-                                                    ? Colors.white
-                                                    : Colors.black,
+                                            Align(
+                                              alignment: _localViewAlignment,
+                                              child: Draggable<String>(
+                                                data: 'local_view',
+                                                feedback: Padding(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 10,
+                                                  ),
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10),
+                                                    child: SizedBox(
+                                                      width: 100,
+                                                      height: 150,
+                                                      child: Center(
+                                                        child: _localVideo(),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                childWhenDragging:
+                                                    const SizedBox.shrink(),
+                                                child: Padding(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 10,
+                                                  ),
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10),
+                                                    child: SizedBox(
+                                                      width: 100,
+                                                      height: 150,
+                                                      child: Center(
+                                                        child: _localVideo(),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          GestureDetector(
-                                            onTap: () async =>
-                                                await _setShowFace(),
-                                            child: Container(
-                                              width: 50,
-                                              height: 50,
-                                              decoration: BoxDecoration(
-                                                color: isRemoteUserVideoEnable
-                                                    ? Colors.blue
-                                                    : Colors.grey.withValues(
-                                                        alpha: 0.35),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              alignment: Alignment.center,
-                                              child: Icon(
-                                                isRemoteUserVideoEnable
-                                                    ? Icons.videocam
-                                                    : Icons.videocam_off,
-                                                color: isRemoteUserVideoEnable
-                                                    ? Colors.white
-                                                    : Colors.black,
-                                              ),
+
+                                            Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                Container(
+                                                  width: size.width,
+                                                  padding: const EdgeInsets
+                                                      .symmetric(vertical: 10),
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.only(
+                                                      topLeft:
+                                                          Radius.circular(20),
+                                                      topRight:
+                                                          Radius.circular(20),
+                                                    ),
+                                                    // boxShadow: [
+                                                    //   BoxShadow(
+                                                    //     color: Colors.black,
+                                                    //     spreadRadius: 2,
+                                                    //     blurRadius: 5,
+                                                    //     offset: Offset(-1, -1),
+                                                    //   )
+                                                    // ],
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      const SizedBox(width: 10),
+                                                      GestureDetector(
+                                                        onTap: () async =>
+                                                            await _muteRemoteUser(
+                                                                shouldMute:
+                                                                    true),
+                                                        child: Container(
+                                                          width: 50,
+                                                          height: 50,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: isRemoteUserVideoEnable
+                                                                ? Colors.blue
+                                                                : Colors.grey
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.35),
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: Icon(
+                                                            isMuted
+                                                                ? Icons.mic_off
+                                                                : Icons.mic,
+                                                            color: !isMuted
+                                                                ? Colors.white
+                                                                : Colors.black,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      GestureDetector(
+                                                        onTap: () async =>
+                                                            await _setShowFace(),
+                                                        child: Container(
+                                                          width: 50,
+                                                          height: 50,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: isRemoteUserVideoEnable
+                                                                ? Colors.blue
+                                                                : Colors.grey
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.35),
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: Icon(
+                                                            isRemoteUserVideoEnable
+                                                                ? Icons.videocam
+                                                                : Icons
+                                                                    .videocam_off,
+                                                            color:
+                                                                isRemoteUserVideoEnable
+                                                                    ? Colors
+                                                                        .white
+                                                                    : Colors
+                                                                        .black,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      GestureDetector(
+                                                        onTap: () async {
+                                                          await cancelCallBeforeKill();
+                                                        },
+                                                        child: Container(
+                                                          width: 50,
+                                                          height: 50,
+                                                          decoration:
+                                                              const BoxDecoration(
+                                                            color: Colors.red,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: const Icon(
+                                                            Icons.call_end,
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                    ],
+                                                  ),
+                                                )
+                                              ],
                                             ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          GestureDetector(
-                                            onTap: () async {
-                                              await cancelCallBeforeKill();
-                                            },
-                                            child: Container(
-                                              width: 50,
-                                              height: 50,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.red,
-                                                shape: BoxShape.circle,
-                                              ),
-                                              alignment: Alignment.center,
-                                              child: const Icon(
-                                                Icons.call_end,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                        ],
-                                      ),
-                                    )
-                                  ],
+                                          ],
+                                        ),
                                 ),
-                              ],
+                              ),
                             ),
-                    ),
-            ),
-          );
+                            curve: Curves.linear,
+                            duration: const Duration(milliseconds: 600),
+                            childWhenEnabled: Center(
+                                child: _remoteVideoMuted
+                                    ? VideoMuteRemoteUserView(
+                                        remoteUser: currentUser.toLowerCase() ==
+                                                widget.callerId
+                                                    .toLowerCase()
+                                                    .trim()
+                                            ? widget.receiverId
+                                            : widget.callerId,
+                                        isVideoEnabled: _remoteVideoMuted,
+                                        onTap: currentUser.toLowerCase() ==
+                                                widget.callerId
+                                                    .toLowerCase()
+                                                    .trim()
+                                            ? () async => await _setShowFace()
+                                            : () {},
+                                      )
+                                    : _remoteVideo()),
+                          ),
+                  );
+        
   }
 }
 

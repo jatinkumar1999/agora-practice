@@ -39,14 +39,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   log('backgroudn==>>${message.notification?.toMap()}');
   RemoteNotification? notification = message.notification;
   //
-  
-    if (Platform.isAndroid) {
-      showNotification(
-        notification.hashCode,
-        message.data,
-      );
-    }
-  
+
+  if (Platform.isAndroid) {
+    showNotification(
+      notification.hashCode,
+      message.data,
+    );
+  }
 }
 
 Future<void> bgHandler() async {
@@ -210,12 +209,11 @@ class FCM {
       log('backgroudn==>>${message.notification?.toMap()}');
       RemoteNotification? notification = message.notification;
       //
-        if (Platform.isAndroid) {
-          showNotification(
-            notification.hashCode,
-            message.data,
-          );
-        
+      if (Platform.isAndroid) {
+        showNotification(
+          notification.hashCode,
+          message.data,
+        );
       }
 
       // _handleNotificationClick(message.data);
@@ -276,6 +274,8 @@ Future<void> showNotification(int id, Map<String, dynamic> data) async {
     //   subtitle: 'Calling...',
     //   callbackText: 'Hang Up',
     // ),
+
+    callingNotification: null,
     duration: 30000,
     extra: {
       'callId': data['callId'],
@@ -297,22 +297,22 @@ Future<void> showNotification(int id, Map<String, dynamic> data) async {
         incomingCallNotificationChannelName: "Incoming Call",
         missedCallNotificationChannelName: "Missed Call",
         isShowCallID: false),
-    // ios: IOSParams(
-    //   iconName: 'CallKitLogo',
-    //   handleType: 'generic',
-    //   supportsVideo: true,
-    //   maximumCallGroups: 2,
-    //   maximumCallsPerCallGroup: 1,
-    //   audioSessionMode: 'default',
-    //   audioSessionActive: true,
-    //   audioSessionPreferredSampleRate: 44100.0,
-    //   audioSessionPreferredIOBufferDuration: 0.005,
-    //   supportsDTMF: true,
-    //   supportsHolding: true,
-    //   supportsGrouping: false,
-    //   supportsUngrouping: false,
-    //   ringtonePath: 'system_ringtone_default',
-    // ),
+    ios: const IOSParams(
+      iconName: 'CallKitLogo',
+      handleType: 'generic',
+      supportsVideo: true,
+      maximumCallGroups: 2,
+      maximumCallsPerCallGroup: 1,
+      audioSessionMode: 'default',
+      audioSessionActive: true,
+      audioSessionPreferredSampleRate: 44100.0,
+      audioSessionPreferredIOBufferDuration: 0.005,
+      supportsDTMF: true,
+      supportsHolding: true,
+      supportsGrouping: false,
+      supportsUngrouping: false,
+      ringtonePath: 'system_ringtone_default',
+    ),
   );
   await FlutterCallkitIncoming.showCallkitIncoming(callKitParams);
 

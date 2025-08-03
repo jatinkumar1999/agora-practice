@@ -131,14 +131,14 @@ class _UsersListScreenState extends State<UsersListScreen> {
               .from('calls')
               .select()
               .eq('id', event.body['extra']['callId'])
-              .single();
+              .maybeSingle();
 
           log('call==>>$call');
 
-          if (call['caller_id'] != supabase.auth.currentUser!.id.toString()) {
+          if (call?['caller_id'] != supabase.auth.currentUser!.id.toString()) {
             await Supabase.instance.client
                 .from('calls')
-                .update({'status': 'call-timeout'}).eq('id', call['id']);
+                .update({'status': 'call-timeout'}).eq('id', call?['id']);
             await FlutterCallkitIncoming.endAllCalls();
             _subscriptionIncoming.cancel();
           }
