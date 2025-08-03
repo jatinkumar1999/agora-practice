@@ -1,8 +1,5 @@
 import 'dart:async';
 import 'dart:developer';
-
-import 'package:agora_video_call_demo/home/notification_functions.dart';
-import 'package:agora_video_call_demo/user_list_screen/users_list_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +7,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:vibration/vibration.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-
 import '../home/home_screen.dart';
 
 const String appId = '88ebabb4bf1e4be184fa4dcd57e7a972';
@@ -156,7 +152,6 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
         .eq('id', widget.callId)
         .select()
         .single();
-        
   }
 
   // Initializes Agora SDK
@@ -477,8 +472,13 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
                                                     ? widget.receiverId
                                                     : widget.callerId,
                                             isVideoEnabled: _remoteVideoMuted,
-                                            onTap: () async =>
-                                                await _setShowFace(),
+                                            onTap: currentUser.toLowerCase() ==
+                                                    widget.callerId
+                                                        .toLowerCase()
+                                                        .trim()
+                                                ? () async =>
+                                                    await _setShowFace()
+                                                : () {},
                                           )
                                         : _remoteVideo()),
 
@@ -585,19 +585,20 @@ class _AgoraCallScreenState extends State<AgoraCallScreen>
                                       padding: const EdgeInsets.symmetric(
                                           vertical: 10),
                                       decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.only(
-                                            topLeft: Radius.circular(20),
-                                            topRight: Radius.circular(20),
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black,
-                                              spreadRadius: 2,
-                                              blurRadius: 5,
-                                              offset: Offset(-1, -1),
-                                            )
-                                          ]),
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.only(
+                                          topLeft: Radius.circular(20),
+                                          topRight: Radius.circular(20),
+                                        ),
+                                        // boxShadow: [
+                                        //   BoxShadow(
+                                        //     color: Colors.black,
+                                        //     spreadRadius: 2,
+                                        //     blurRadius: 5,
+                                        //     offset: Offset(-1, -1),
+                                        //   )
+                                        // ],
+                                      ),
                                       child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
