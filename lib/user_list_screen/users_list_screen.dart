@@ -59,12 +59,11 @@ class _UsersListScreenState extends State<UsersListScreen> {
       log('FlutterCallkitIncoming.body=>>${event?.body['extra']}');
       switch (event!.event) {
         case Event.actionCallIncoming:
-          // ⬅️ NEW: Listen for real-time updates as soon as incoming call screen appears
           final callId = event.body['extra']['callId'];
           _listenForCallComingResponse(callId);
           break;
         case Event.actionCallAccept:
-          print('Call accepted!');
+          log('Call accepted!');
           _subscriptionIncoming.cancel();
 
           var call = await supabase
@@ -99,6 +98,7 @@ class _UsersListScreenState extends State<UsersListScreen> {
 
           break;
         case Event.actionCallDecline:
+          log('Call declined!');
           var call = await supabase
               .from('calls')
               .select()
@@ -117,6 +117,32 @@ class _UsersListScreenState extends State<UsersListScreen> {
 
           break;
         case Event.actionCallEnded:
+          log('Call ended!');
+          await FlutterCallkitIncoming.endAllCalls();
+          _subscriptionIncoming.cancel();
+
+          break;
+
+        case Event.actionCallTimeout:
+          log('Call Timeout!');
+
+          log('Call declined!');
+          var call = await supabase
+              .from('calls')
+              .select()
+              .eq('id', event.body['extra']['callId'])
+              .single();
+
+          log('call==>>$call');
+
+          if (call['caller_id'] != supabase.auth.currentUser!.id.toString()) {
+            await Supabase.instance.client
+                .from('calls')
+                .update({'status': 'call-timeout'}).eq('id', call['id']);
+            await FlutterCallkitIncoming.endAllCalls();
+            _subscriptionIncoming.cancel();
+          }
+
           await FlutterCallkitIncoming.endAllCalls();
           _subscriptionIncoming.cancel();
 
@@ -211,6 +237,33 @@ class _UsersListScreenState extends State<UsersListScreen> {
                       try {
                         var supabase = Supabase.instance.client;
 
+                        final ongoingCall = await supabase
+                            .from('calls')
+                            .select()
+                            // .or('status.eq.ringing,status.eq.ringing')
+
+                            .inFilter('status', ['ringing', 'accepted'])
+                            .eq(
+                              'receiver_id',
+                              user['auth_id'],
+                            )
+                            .maybeSingle();
+
+                        log('On GOIMG CALL==>>$ongoingCall');
+                        if (ongoingCall != null) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('User is busy on another call.'),
+                                backgroundColor: Colors.red,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+
+                            return;
+                          }
+                        }
+
                         var call = await supabase
                             .from('calls')
                             .insert({
@@ -223,7 +276,6 @@ class _UsersListScreenState extends State<UsersListScreen> {
                             .select()
                             .single();
 
-                        const chan = 'video_chat_123';
                         await sendPushNotification(
                           token: user['device_token'] ?? '',
                           callId: call['id'],
@@ -232,15 +284,6 @@ class _UsersListScreenState extends State<UsersListScreen> {
                         );
 
                         if (context.mounted) {
-                          // Navigator.push(
-                          //   context,
-                          //   MaterialPageRoute(
-                          //       builder: (_) => OutgoingCallingScreen(
-                          //           callId:
-                          //               supabase.auth.currentUser!.id.toString(),
-                          //           receiverId: user['auth_id'],
-                          //           channelId: chan)),
-                          // );
                           Navigator.push(
                             context,
                             MaterialPageRoute(
