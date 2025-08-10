@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:agora_video_call_demo/authentication/login_screen.dart';
 import 'package:agora_video_call_demo/home/notification_functions.dart';
 import 'package:agora_video_call_demo/home/outgoing_call.dart';
 import 'package:agora_video_call_demo/views/call_screen.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/call_event.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -42,6 +44,17 @@ class _UsersListScreenState extends State<UsersListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       callHandler();
     });
+  }
+
+  Future<bool> isAndroid14Above() async {
+    if (Platform.isAndroid) {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      // androidInfo.version.sdkInt -> Android SDK version number
+      // Android 14 corresponds to API level 34
+      return androidInfo.version.sdkInt > 34;
+    }
+    return false;
   }
 
   @override
@@ -165,7 +178,10 @@ class _UsersListScreenState extends State<UsersListScreen> {
             final call = calls.first;
             final status = call['status'];
 
-            if (status == 'rejected') {
+            if (status == 'accepted') {
+              await FlutterCallkitIncoming.endAllCalls();
+              _subscriptionIncoming.cancel();
+            } else if (status == 'rejected') {
               await FlutterCallkitIncoming.endAllCalls();
               _subscriptionIncoming.cancel();
             } else if (status == 'cancelled') {
@@ -235,13 +251,14 @@ class _UsersListScreenState extends State<UsersListScreen> {
                     icon: const Icon(Icons.call),
                     onPressed: () async {
                       try {
+                        var channelName =
+                            'channel_${DateTime.now().millisecondsSinceEpoch}';
+
                         var supabase = Supabase.instance.client;
 
                         final ongoingCall = await supabase
                             .from('calls')
                             .select()
-                            // .or('status.eq.ringing,status.eq.ringing')
-
                             .inFilter('status', ['ringing', 'accepted'])
                             .eq(
                               'receiver_id',
@@ -270,7 +287,7 @@ class _UsersListScreenState extends State<UsersListScreen> {
                               'caller_id':
                                   supabase.auth.currentUser!.id.toString(),
                               'receiver_id': user['auth_id'],
-                              'channel_id': 'video_chat_123',
+                              'channel_id': channelName,
                               'status': 'ringing',
                             })
                             .select()
@@ -307,56 +324,6 @@ class _UsersListScreenState extends State<UsersListScreen> {
           },
         ),
       ),
-    );
-  }
-}
-
-class WhiteScreen extends StatefulWidget {
-  final String callId;
-  final String channelId;
-  final String callerId;
-  final String receiverId;
-  const WhiteScreen(
-      {super.key,
-      required this.callId,
-      required this.channelId,
-      required this.callerId,
-      required this.receiverId});
-
-  @override
-  State<WhiteScreen> createState() => _WhiteScreenState();
-}
-
-class _WhiteScreenState extends State<WhiteScreen> {
-  @override
-  void initState() {
-    super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      Future.delayed(const Duration(seconds: 1), () {
-        _navigateToCallScreen();
-      });
-    });
-  }
-
-  _navigateToCallScreen() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AgoraCallScreen(
-          callId: widget.callId,
-          channelId: widget.channelId,
-          callerId: widget.callerId,
-          receiverId: widget.receiverId,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.white,
     );
   }
 }
