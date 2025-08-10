@@ -1,12 +1,8 @@
 import 'dart:async';
 import 'dart:developer';
-import 'dart:io';
-
 import 'package:agora_video_call_demo/authentication/login_screen.dart';
 import 'package:agora_video_call_demo/home/notification_functions.dart';
-import 'package:agora_video_call_demo/home/outgoing_call.dart';
 import 'package:agora_video_call_demo/views/call_screen.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/call_event.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -21,7 +17,6 @@ class UsersListScreen extends StatefulWidget {
 
 class _UsersListScreenState extends State<UsersListScreen> {
   var supabase = Supabase.instance.client;
-  late final StreamSubscription _subscription;
   late final StreamSubscription _subscriptionIncoming;
   String? callId;
 
@@ -44,24 +39,6 @@ class _UsersListScreenState extends State<UsersListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       callHandler();
     });
-  }
-
-  Future<bool> isAndroid14Above() async {
-    if (Platform.isAndroid) {
-      final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
-      // androidInfo.version.sdkInt -> Android SDK version number
-      // Android 14 corresponds to API level 34
-      return androidInfo.version.sdkInt > 34;
-    }
-    return false;
-  }
-
-  @override
-  void dispose() {
-    //   _subscription.cancel();
-
-    super.dispose();
   }
 
   Future<void> callHandler() async {
